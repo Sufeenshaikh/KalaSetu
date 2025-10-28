@@ -1,0 +1,7 @@
+{
+  "name": "KalaSetu",
+  "description": "A full-stack e-commerce web application to bridge the gap between Indian artisans and the global market, showcasing their unique crafts and stories.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
