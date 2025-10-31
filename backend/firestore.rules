@@ -1,0 +1,100 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helpers
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getRole(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid))
+        ? get(/databases/$(database)/documents/users/$(uid)).data.role
+        : null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && getRole(request.auth.uid) == 'admin';
+    }
+
+    function isArtisan() {
+      return isAuthenticated() && getRole(request.auth.uid) == 'artisan';
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Artisans collection (additional artisan profile data)
+    match /artisans/{artisanId} {
+      allow read: if true; // public
+      allow create: if isAuthenticated() && isOwner(artisanId);
+      allow update: if isAuthenticated() && (isOwner(artisanId) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Products collection
+    match /products/{productId} {
+      allow read: if true;
+      allow create: if isArtisan();
+      allow update: if isAuthenticated() && (
+        resource.data.artisanId == request.auth.uid || isAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.artisanId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // Orders collection
+    match /orders/{orderId} {
+      allow create: if isAuthenticated();
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.artisanId == request.auth.uid ||
+        isAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.artisanId == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Reviews collection
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // AI content cache
+    match /aiContent/{docId} {
+      allow read: if true;
+      // Creates allowed from backend or authenticated users (rate-limited elsewhere)
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    // Artisan stories
+    match /artisanStories/{storyId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && (request.auth.uid == request.resource.data.artisanId || isAdmin());
+      allow update: if isAuthenticated() && (resource.data.artisanId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin() || (resource.data.artisanId == request.auth.uid);
+    }
+  }
+}

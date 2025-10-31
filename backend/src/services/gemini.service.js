@@ -6,6 +6,9 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Initialize Gemini AI with API key
+if (!process.env.GEMINI_API_KEY) {
+  throw new Error('GEMINI_API_KEY environment variable is not set');
+}
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
@@ -21,13 +24,22 @@ class GeminiService {
     keywords = [],
     tone = 'inspiring'
   }) {
+    // Import story templates
+    const storyTemplates = (await import('../templates/story.templates.js')).default;
+    
+    // Get enhanced prompt using craft-specific template
+    const enhancedPrompt = storyTemplates.enhancePrompt(craft, {
+      keywords,
+      tone
+    });
+
     const prompt = `
       Generate an authentic and engaging story for an artisan with the following details:
       - Name: ${artisanName}
       - Craft: ${craft}
       - Location: ${location}
       - Years of experience: ${experience}
-      - Key aspects to highlight: ${keywords.join(', ')}
+      - Key aspects to highlight: ${enhancedPrompt.keywords.join(', ')}
       
       The story should:
       - Have a ${tone} tone
@@ -37,16 +49,20 @@ class GeminiService {
       - Include their connection to their community
       - Be 2-3 paragraphs long
       
+      Additional context to consider:
+      ${enhancedPrompt.promptContext || ''}
+      
       Format the response in clean paragraphs without any special markers or prefixes.
     `;
 
     try {
       const result = await model.generateContent(prompt);
-      const text = result.response.text();
+      const response = await result.response;
+      const text = response.text();
       return this.cleanupAIResponse(text);
     } catch (error) {
       console.error('Story generation error:', error);
-      throw new Error('Failed to generate artisan story');
+      throw new Error(error.message || 'Failed to generate artisan story');
     }
   }
 

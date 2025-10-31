@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Service account and environment files (do not commit)
+/backend/service-account.json
+/backend/serviceAccountKey.json
+/backend/.env
+/backend/.firebase
+/backend/.runtimeconfig.json

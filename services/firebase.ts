@@ -1,29 +1,33 @@
 
-// This is a placeholder for Firebase configuration.
-// In a real application, you would initialize Firebase here.
-// For this prototype, we will use mocked services that return dummy data.
+// Frontend Firebase initialization using provided web config
+import { initializeApp } from 'firebase/app';
+import { getFirestore } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyBEh_w4QwH0a8Ht7o_5mc3L3WXp0oDRNhE",
+  authDomain: "kalasetu-e55c4.firebaseapp.com",
+  projectId: "kalasetu-e55c4",
+  storageBucket: "kalasetu-e55c4.firebasestorage.app",
+  messagingSenderId: "834060824789",
+  appId: "1:834060824789:web:4156176653ec3603d1725c",
+  measurementId: "G-ETCXHR73C0"
 };
 
-// In a real app, you would initialize and export Firebase services:
-// import { initializeApp } from "firebase/app";
-// import { getFirestore } from "firebase/firestore";
-// import { getAuth } from "firebase/auth";
-// import { getStorage } from "firebase/storage";
+const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app);
+export const auth = getAuth(app);
+export const storage = getStorage(app);
 
-// const app = initializeApp(firebaseConfig);
-// export const db = getFirestore(app);
-// export const auth = getAuth(app);
-// export const storage = getStorage(app);
-
-// Mock exports for the prototype
-export const db = {};
-export const auth = {};
-export const storage = {};
+// Optionally, lazy-load analytics in environments where window is available
+export async function initAnalytics() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const { getAnalytics } = await import('firebase/analytics');
+    return getAnalytics(app);
+  } catch (e) {
+    // analytics import may fail in SSR or non-browser environments
+    return null;
+  }
+}

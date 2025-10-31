@@ -4,6 +4,7 @@
  */
 
 import GeminiService from '../services/gemini.service.js';
+import aiModel from '../models/ai.model.js';
 
 class AIController {
   /**
@@ -19,22 +20,26 @@ class AIController {
         keywords,
         tone
       } = req.body;
+      const params = { artisanName, craft, location, experience, keywords, tone };
 
-      const story = await GeminiService.generateArtisanStory({
-        artisanName,
-        craft,
-        location,
-        experience,
-        keywords,
-        tone
-      });
+      // check cache first
+      const cached = await aiModel.getCachedContent('artisanStory', params);
+      if (cached) {
+        return res.json({ success: true, story: cached, cached: true });
+      }
 
-      res.json({ success: true, story });
+      const story = await GeminiService.generateArtisanStory(params);
+
+      // cache for 7 days
+      await aiModel.setCachedContent('artisanStory', params, story, 60 * 60 * 24 * 7);
+
+      res.json({ success: true, story, cached: false });
     } catch (error) {
       console.error('Story generation error:', error);
       res.status(500).json({
         success: false,
-        error: 'Failed to generate artisan story'
+        error: error.message || 'Failed to generate artisan story',
+        details: error.stack
       });
     }
   }
@@ -51,21 +56,21 @@ class AIController {
         keywords,
         style
       } = req.body;
+      const params = { productName, originalDescription, category, keywords, style };
 
-      const enhancedDescription = await GeminiService.enhanceProductDescription({
-        productName,
-        originalDescription,
-        category,
-        keywords,
-        style
-      });
+      const cached = await aiModel.getCachedContent('productDescription', params);
+      if (cached) return res.json({ success: true, description: cached, cached: true });
 
-      res.json({ success: true, description: enhancedDescription });
+      const enhancedDescription = await GeminiService.enhanceProductDescription(params);
+      await aiModel.setCachedContent('productDescription', params, enhancedDescription, 60 * 60 * 24 * 7);
+
+      res.json({ success: true, description: enhancedDescription, cached: false });
     } catch (error) {
       console.error('Description enhancement error:', error);
       res.status(500).json({
         success: false,
-        error: 'Failed to enhance product description'
+        error: error.message || 'Failed to enhance product description',
+        details: error.stack
       });
     }
   }
@@ -80,19 +85,21 @@ class AIController {
         description,
         existingTags
       } = req.body;
+      const params = { productName, description, existingTags };
 
-      const { tags, categories } = await GeminiService.generateProductTags({
-        productName,
-        description,
-        existingTags
-      });
+      const cached = await aiModel.getCachedContent('productTags', params);
+      if (cached) return res.json({ success: true, tags: cached.tags, categories: cached.categories, cached: true });
 
-      res.json({ success: true, tags, categories });
+      const { tags, categories } = await GeminiService.generateProductTags(params);
+      await aiModel.setCachedContent('productTags', params, { tags, categories }, 60 * 60 * 24 * 7);
+
+      res.json({ success: true, tags, categories, cached: false });
     } catch (error) {
       console.error('Tag generation error:', error);
       res.status(500).json({
         success: false,
-        error: 'Failed to generate product tags'
+        error: error.message || 'Failed to generate product tags',
+        details: error.stack
       });
     }
   }
@@ -108,20 +115,21 @@ class AIController {
         productName,
         artisanName
       } = req.body;
+      const params = { review, rating, productName, artisanName };
 
-      const response = await GeminiService.generateReviewResponse({
-        review,
-        rating,
-        productName,
-        artisanName
-      });
+      const cached = await aiModel.getCachedContent('reviewResponse', params);
+      if (cached) return res.json({ success: true, response: cached, cached: true });
 
-      res.json({ success: true, response });
+      const response = await GeminiService.generateReviewResponse(params);
+      await aiModel.setCachedContent('reviewResponse', params, response, 60 * 60 * 24 * 7);
+
+      res.json({ success: true, response, cached: false });
     } catch (error) {
       console.error('Review response generation error:', error);
       res.status(500).json({
         success: false,
-        error: 'Failed to generate review response'
+        error: error.message || 'Failed to generate review response',
+        details: error.stack
       });
     }
   }
