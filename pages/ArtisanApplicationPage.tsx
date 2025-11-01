@@ -4,6 +4,7 @@ import Button from '../components/Button';
 import BackButton from '../components/BackButton';
 import { useAuth } from '../context/AuthContext';
 import { updateArtisan } from '../services/firestoreService';
+import { analyzeArtisanApplicationVoice } from '../services/geminiService';
 
 const MicrophoneIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -39,7 +40,11 @@ const ArtisanApplicationPage: React.FC = () => {
     const [showVoiceModal, setShowVoiceModal] = useState(false);
     const [voiceStep, setVoiceStep] = useState(0); // 0: idle, 1-4: questions, 5: finished
     const [isRecording, setIsRecording] = useState(false);
-    const [hasRecorded, setHasRecorded] = useState(false); // To enable the 'Next' button
+    const [hasRecorded, setHasRecorded] = useState(false);
+    const [transcript, setTranscript] = useState('');
+    const [voiceData, setVoiceData] = useState<Record<string, string>>({});
+    const recognitionRef = useRef<any>(null);
+    const isSpeechRecognitionSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
 
     const allRegions = [
         'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
@@ -63,41 +68,129 @@ const ArtisanApplicationPage: React.FC = () => {
     }, []);
 
     const handleOpenVoiceModal = () => {
+        if (!isSpeechRecognitionSupported) {
+            alert('Voice input is not supported in your browser. Please use Chrome or Edge.');
+            return;
+        }
         setVoiceStep(1); // Start with the first question
         setIsRecording(false);
         setHasRecorded(false);
+        setTranscript('');
+        setVoiceData({});
         setShowVoiceModal(true);
     };
 
     const handleCloseVoiceModal = () => {
+        if (recognitionRef.current && isRecording) {
+            recognitionRef.current.stop();
+        }
         setShowVoiceModal(false);
         setVoiceStep(0);
+        setTranscript('');
+        setIsRecording(false);
+        setHasRecorded(false);
     };
 
     const handleStartRecording = () => {
+        if (!isSpeechRecognitionSupported) {
+            alert('Speech recognition is not supported in your browser. Please use Chrome or Edge.');
+            return;
+        }
+
+        // Stop any existing recognition
+        if (recognitionRef.current) {
+            recognitionRef.current.stop();
+            recognitionRef.current = null;
+        }
+
+        setTranscript('');
         setIsRecording(true);
         setHasRecorded(false);
-        // Simulate a 2-second recording
-        setTimeout(() => {
+        
+        try {
+            const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+            const recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onresult = (event: any) => {
+                const speechResult = event.results[0][0].transcript;
+                setTranscript(speechResult);
+                
+                // Store the transcript for the current question
+                const currentQuestion = voiceQuestions[voiceStep - 1];
+                if (currentQuestion) {
+                    setVoiceData(prev => ({
+                        ...prev,
+                        [currentQuestion.key]: speechResult
+                    }));
+                }
+                
+                setIsRecording(false);
+                setHasRecorded(true);
+            };
+
+            recognition.onerror = (event: any) => {
+                console.error('Speech recognition error:', event.error);
+                setIsRecording(false);
+                setHasRecorded(false);
+                if (event.error === 'no-speech') {
+                    setTranscript('No speech detected. Please try again.');
+                } else {
+                    setTranscript('Error: Could not process voice input. Please try again.');
+                }
+            };
+
+            recognition.onend = () => {
+                setIsRecording(false);
+            };
+
+            recognitionRef.current = recognition;
+            recognition.start();
+        } catch (error) {
+            console.error('Error starting recognition:', error);
             setIsRecording(false);
-            setHasRecorded(true);
-        }, 2000);
+            setTranscript('Error starting voice recognition. Please try again.');
+        }
     };
     
-    const handleNextQuestion = () => {
-        // This is where we would normally process the voice input.
-        // For now, we just move to the next step.
+    const handleNextQuestion = async () => {
+        if (recognitionRef.current && isRecording) {
+            recognitionRef.current.stop();
+        }
+
         if (voiceStep < voiceQuestions.length) {
             setVoiceStep(voiceStep + 1);
-            setHasRecorded(false); // Reset for the next question
+            setHasRecorded(false);
+            setTranscript('');
         } else {
-            // This is the "Finish" step
-            // For the demo, let's populate the form with placeholder values
-            setFullName('Rina Devi');
-            setCraftType('Block Printing');
-            setRegion('Rajasthan');
-            setAboutCraft('I learned block printing from my grandmother in our small village. It is a tradition passed down through generations, and I put my heart into every piece I create, using natural dyes and hand-carved wooden blocks. It is more than a craft; it is our story.');
-            handleCloseVoiceModal();
+            // Finish step - process all voice data
+            try {
+                // Combine all voice transcripts into one context
+                const fullTranscript = Object.entries(voiceData)
+                    .map(([key, value]) => `${key}: ${value}`)
+                    .join('\n');
+
+                // Use AI to extract structured data from the transcript
+                const processedData = await analyzeArtisanApplicationVoice(fullTranscript);
+                
+                // Populate form with processed data
+                setFullName(processedData.fullName || voiceData.fullName || '');
+                setCraftType(processedData.craftType || voiceData.craftType || '');
+                setRegion(processedData.region || voiceData.region || '');
+                setAboutCraft(processedData.story || voiceData.aboutCraft || processedData.bio || '');
+                
+                handleCloseVoiceModal();
+            } catch (error) {
+                console.error('Error processing voice data:', error);
+                // Fallback to using raw voice data if AI processing fails
+                setFullName(voiceData.fullName || '');
+                setCraftType(voiceData.craftType || '');
+                setRegion(voiceData.region || '');
+                setAboutCraft(voiceData.aboutCraft || '');
+                handleCloseVoiceModal();
+            }
         }
     };
 
@@ -223,8 +316,14 @@ const ArtisanApplicationPage: React.FC = () => {
                                             {isRecording && <div className="absolute inset-0 rounded-full bg-red-400 animate-ping -z-10"></div>}
                                         </button>
                                         <p className="text-text-secondary mt-4 h-6">
-                                            {isRecording ? 'Recording...' : (hasRecorded ? 'Recording complete!' : 'Tap to record')}
+                                            {isRecording ? 'Recording... Speak now' : (hasRecorded ? 'Recording complete!' : 'Tap to record')}
                                         </p>
+                                        {transcript && (
+                                            <div className="mt-4 p-4 bg-secondary rounded-lg">
+                                                <p className="text-text-primary text-sm font-medium mb-1">What I heard:</p>
+                                                <p className="text-text-secondary italic">{transcript}</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </>
                             )}

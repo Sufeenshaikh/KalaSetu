@@ -1,6 +1,5 @@
 import React from 'react';
 
-// FIX: Add global type definitions for the custom <model-viewer> web component to resolve TypeScript errors across the application.
 declare global {
   namespace JSX {
     interface IntrinsicElements {

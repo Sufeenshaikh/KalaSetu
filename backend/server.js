@@ -92,15 +92,42 @@ export const verifyToken = async (req, res, next) => {
   }
 };
 
-// Route placeholders. Each route file will be implemented under ./routes
-// Example: import authRoutes from './routes/auth.js'; app.use('/api/auth', authRoutes);
-// We'll add the concrete route modules in follow-up steps.
-import { Router } from 'express';
+// Import and register all route modules
+import authRoutes from './src/routes/auth.js';
+import artisanRoutes from './src/routes/artisan.js';
+import productRoutes from './src/routes/product.js';
+import uploadRoutes from './src/routes/upload.js';
+import cartOrderRoutes from './src/routes/cart-orders.js';
 
-const placeholderRouter = Router();
-placeholderRouter.get('/', (req, res) => res.json({ status: 'KalaSetu backend up', timestamp: Date.now() }));
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: Date.now() });
+});
 
-app.use('/api', placeholderRouter);
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/artisans', artisanRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/cart', cartOrderRoutes);
+app.use('/api/orders', cartOrderRoutes);
+
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'KalaSetu backend is running',
+    timestamp: Date.now(),
+    endpoints: {
+      health: '/health',
+      auth: '/api/auth',
+      artisans: '/api/artisans',
+      products: '/api/products',
+      upload: '/api/upload',
+      cart: '/api/cart',
+      orders: '/api/orders'
+    }
+  });
+});
 
 // Global error handling middleware
 app.use((err, req, res, next) => {

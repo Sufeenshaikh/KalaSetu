@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getArtisanById, updateArtisan } from '../services/firestoreService';
 import { generateArtisanStory, enhanceProductImage } from '../services/geminiService';
+import { uploadImageFromDataUri } from '../services/storageService';
 import type { Artisan } from '../types';
 import Button from './Button';
 import Spinner from './Spinner';
@@ -68,9 +69,10 @@ const ArtisanProfileManager: React.FC<ArtisanProfileManagerProps> = ({ artisanId
       const base64Data = match[2];
       const enhancedImage = await enhanceProductImage(base64Data, mimeType);
       setFormData({ ...formData, image: enhancedImage });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to enhance image:", error);
-      alert("Image enhancement failed.");
+      const errorMessage = error?.message || "Image enhancement failed. Please try again.";
+      alert(errorMessage);
     } finally {
       setIsEnhancing(false);
     }
@@ -85,9 +87,10 @@ const ArtisanProfileManager: React.FC<ArtisanProfileManagerProps> = ({ artisanId
     try {
       const newStory = await generateArtisanStory(formData.bio);
       setFormData({ ...formData, story: newStory });
-    } catch (error)      {
+    } catch (error: any) {
       console.error("Failed to generate story:", error);
-      alert("Story generation failed.");
+      const errorMessage = error?.message || "Story generation failed. Please try again later.";
+      alert(errorMessage);
     } finally {
       setIsGenerating(false);
     }
@@ -97,7 +100,25 @@ const ArtisanProfileManager: React.FC<ArtisanProfileManagerProps> = ({ artisanId
     e.preventDefault();
     setIsSaving(true);
     try {
-      const savedArtisan = await updateArtisan(artisanId, formData);
+      // Upload image to Firebase Storage if it's a data URI
+      let profileData = { ...formData };
+      
+      if (profileData.image && profileData.image.startsWith('data:')) {
+        try {
+          const uploadedUrl = await uploadImageFromDataUri(profileData.image, {
+            folder: 'artisans',
+            fileName: `profile_${artisanId}_${Date.now()}`
+          });
+          profileData.image = uploadedUrl;
+        } catch (uploadError) {
+          console.error("Failed to upload profile image:", uploadError);
+          alert("Failed to upload profile image. Please try again.");
+          setIsSaving(false);
+          return;
+        }
+      }
+      
+      const savedArtisan = await updateArtisan(artisanId, profileData);
       if (savedArtisan) {
         setArtisan(savedArtisan);
         setFormData(savedArtisan);

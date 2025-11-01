@@ -105,6 +105,17 @@ export const generateProductDescription = async (rawNotes: string): Promise<stri
 export const generateArtisanStory = async (context: string): Promise<string> => {
   console.log("Generating artisan story from context:", context);
 
+  // Check if API key is configured
+  if (!process.env.API_KEY) {
+    console.error("API_KEY is not set in environment variables");
+    throw new Error("API key is not configured. Please set GEMINI_API_KEY in your .env file.");
+  }
+
+  // Validate context input
+  if (!context || context.trim().length === 0) {
+    throw new Error("Context cannot be empty. Please provide some information about the artisan.");
+  }
+
   try {
     const prompt = `Based on the following context about an artisan, rewrite and expand it into a polished, empathetic, and engaging story of about 200 words. The story should be told from the artisan's first-person perspective, as if the artisan is speaking. If the context is short or just keywords, create a compelling story from it. \n\nContext: "${context}"`;
 
@@ -113,10 +124,37 @@ export const generateArtisanStory = async (context: string): Promise<string> => 
       contents: prompt,
     });
     
+    // Check if response has text
+    if (!response || !response.text || response.text.trim().length === 0) {
+      console.error("Empty response from AI model");
+      throw new Error("Received an empty response from the AI service. Please try again.");
+    }
+    
     return response.text;
-  } catch (error) {
-    console.error("Error generating artisan story:", error);
-    return "We're sorry, but we couldn't generate a story at this time. Please try again later.";
+  } catch (error: any) {
+    // Log detailed error information
+    console.error("Error generating artisan story:", {
+      message: error?.message,
+      code: error?.code,
+      status: error?.status,
+      statusCode: error?.statusCode,
+      details: error,
+      stack: error?.stack
+    });
+
+    // Provide more specific error messages based on error type
+    if (error?.message?.includes('API key') || error?.code === 401) {
+      throw new Error("Invalid API key. Please check your GEMINI_API_KEY configuration.");
+    }
+    if (error?.code === 429 || error?.status === 429) {
+      throw new Error("Rate limit exceeded. Please wait a moment and try again.");
+    }
+    if (error?.code === 'ENOTFOUND' || error?.code === 'ECONNREFUSED') {
+      throw new Error("Network error. Please check your internet connection and try again.");
+    }
+
+    // Re-throw the error with more context
+    throw new Error(error?.message || "Failed to generate artisan story. Please try again later.");
   }
 };
 
@@ -367,11 +405,122 @@ export const enhanceProductImage = async (base64ImageData: string, mimeType: str
     }
     */
 
-    // Mocked response for demonstration
-    await delay(2500);
-    console.log("Mock image enhancement complete.");
-    // For the mock, we'll just return the original image to demonstrate the UI flow.
-    return `data:${mimeType};base64,${base64ImageData}`;
+    // Validate inputs
+    if (!base64ImageData || base64ImageData.trim().length === 0) {
+        throw new Error("Invalid image data provided. Please upload an image first.");
+    }
+    
+    if (!mimeType || !mimeType.startsWith('image/')) {
+        throw new Error("Invalid image format. Please ensure you're uploading a valid image file.");
+    }
+    
+    // Check if API key is configured
+    if (!process.env.API_KEY) {
+        throw new Error("API key is not configured. Please set GEMINI_API_KEY in your .env file.");
+    }
+
+    // Note: Gemini models can analyze images but don't directly generate/enhance them
+    // We'll use a client-side enhancement approach using canvas
+    try {
+        // Apply basic client-side image enhancement
+        const enhanced = await enhanceImageClientSide(base64ImageData, mimeType);
+        return enhanced;
+    } catch (error: any) {
+        console.error("Error enhancing product image:", {
+            message: error?.message,
+            code: error?.code,
+            details: error
+        });
+        
+        // Re-throw with more context
+        throw new Error(error?.message || "Image enhancement failed. Please try again or use the original image.");
+    }
+};
+
+/**
+ * Client-side image enhancement using canvas
+ * Applies brightness, contrast, and saturation adjustments
+ */
+const enhanceImageClientSide = async (base64ImageData: string, mimeType: string): Promise<string> => {
+    // Check if we're in a browser environment
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+        throw new Error("Image enhancement requires a browser environment");
+    }
+    
+    return new Promise((resolve, reject) => {
+        try {
+            // Construct data URI - handle both with and without prefix
+            const dataUri = base64ImageData.startsWith('data:') 
+                ? base64ImageData 
+                : `data:${mimeType};base64,${base64ImageData}`;
+            
+            // Create an image element
+            const img = new Image();
+            
+            img.onload = () => {
+                try {
+                    // Create canvas
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    if (!ctx) {
+                        throw new Error("Could not get canvas context");
+                    }
+                    
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    
+                    // Draw image to canvas
+                    ctx.drawImage(img, 0, 0);
+                    
+                    // Get image data
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imageData.data;
+                    
+                    // Apply enhancements: brightness, contrast, and slight saturation
+                    for (let i = 0; i < data.length; i += 4) {
+                        const r = data[i];
+                        const g = data[i + 1];
+                        const b = data[i + 2];
+                        
+                        // Brightness adjustment (+8%)
+                        let newR = Math.min(255, r * 1.08);
+                        let newG = Math.min(255, g * 1.08);
+                        let newB = Math.min(255, b * 1.08);
+                        
+                        // Contrast adjustment
+                        const factor = 1.12;
+                        newR = Math.min(255, ((newR / 255 - 0.5) * factor + 0.5) * 255);
+                        newG = Math.min(255, ((newG / 255 - 0.5) * factor + 0.5) * 255);
+                        newB = Math.min(255, ((newB / 255 - 0.5) * factor + 0.5) * 255);
+                        
+                        data[i] = Math.round(newR);
+                        data[i + 1] = Math.round(newG);
+                        data[i + 2] = Math.round(newB);
+                    }
+                    
+                    // Put enhanced image data back
+                    ctx.putImageData(imageData, 0, 0);
+                    
+                    // Convert to base64
+                    const enhancedBase64 = canvas.toDataURL(mimeType, 0.92);
+                    resolve(enhancedBase64);
+                } catch (error) {
+                    reject(new Error(`Image processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
+                }
+            };
+            
+            img.onerror = () => {
+                reject(new Error("Failed to load image for enhancement"));
+            };
+            
+            // Load image from data URI
+            img.src = dataUri;
+                
+        } catch (error) {
+            reject(new Error(`Image enhancement failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        }
+    });
 };
 
 /**

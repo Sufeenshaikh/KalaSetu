@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getProductsByArtisanId, addProduct, updateProduct, deleteProduct } from '../services/firestoreService';
 import { generateArtisanStory, enhanceProductImage, suggestProductPrice, analyzeProductImage } from '../services/geminiService';
+import { uploadImage, uploadImageFromDataUri } from '../services/storageService';
 import type { Product } from '../types';
 import Button from './Button';
 import Spinner from './Spinner';
@@ -112,9 +113,10 @@ const ArtisanProductManager: React.FC<ArtisanProductManagerProps> = ({ artisanId
           setEnhancedImageForPreview(enhancedImage);
           setNewProduct(prev => ({...prev, images: [enhancedImage]}));
           setShowEnhancePreview(true);
-      } catch (error) {
+      } catch (error: any) {
           console.error("Failed to enhance image:", error);
-          alert("There was an error enhancing the image. Please try again.");
+          const errorMessage = error?.message || "There was an error enhancing the image. Please try again.";
+          alert(errorMessage);
       } finally {
           setIsEnhancing(false);
       }
@@ -143,12 +145,18 @@ const ArtisanProductManager: React.FC<ArtisanProductManagerProps> = ({ artisanId
   };
 
   const handleGenerateStory = async () => {
+    if (!newProduct.description || newProduct.description.trim().length === 0) {
+      alert("Please provide a product description first to generate a story.");
+      return;
+    }
     setIsGeneratingStory(true);
     try {
         const story = await generateArtisanStory(newProduct.description);
         setNewProduct(prev => ({ ...prev, description: story }));
-    } catch (error) {
+    } catch (error: any) {
         console.error("Failed to generate story:", error);
+        const errorMessage = error?.message || "Story generation failed. Please try again later.";
+        alert(errorMessage);
     } finally {
         setIsGeneratingStory(false);
     }
@@ -194,16 +202,53 @@ const ArtisanProductManager: React.FC<ArtisanProductManagerProps> = ({ artisanId
     }
     setIsSubmitting(true);
     try {
+      // Upload images to Firebase Storage if they're data URIs
+      let imageUrls = [...newProduct.images];
+      
+      // Check if images need to be uploaded (if they're data URIs)
+      const imagesToUpload = imageUrls.filter(url => url.startsWith('data:'));
+      
+      if (imagesToUpload.length > 0) {
+        try {
+          const uploadedUrls = await Promise.all(
+            imagesToUpload.map(dataUri => 
+              uploadImageFromDataUri(dataUri, { folder: 'products' })
+            )
+          );
+          
+          // Replace data URIs with uploaded URLs
+          let uploadIndex = 0;
+          imageUrls = imageUrls.map(url => {
+            if (url.startsWith('data:')) {
+              return uploadedUrls[uploadIndex++];
+            }
+            return url; // Keep existing URLs
+          });
+        } catch (uploadError) {
+          console.error("Failed to upload images:", uploadError);
+          alert("Failed to upload images. Please try again.");
+          setIsSubmitting(false);
+          return;
+        }
+      }
+      
+      // Update product with uploaded image URLs
+      const productData = {
+        ...newProduct,
+        images: imageUrls,
+      };
+      
       if (editingProduct) {
-          await updateProduct(editingProduct.id, newProduct);
+          await updateProduct(editingProduct.id, productData);
       } else {
           // FIX: Add a default 'likes' value of 0 when creating a new product to satisfy the type constraints of the 'addProduct' service.
-          await addProduct({ ...newProduct, artisanId, likes: 0 });
+          await addProduct({ ...productData, artisanId, likes: 0 });
       }
       handleCancel(); // Reset form and hide it
       await loadProducts(); // Refresh the list
     } catch (error) {
       console.error("Failed to save product:", error);
+      alert("Failed to save product. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

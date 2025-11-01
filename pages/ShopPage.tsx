@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ProductCard from '../components/ProductCard';
 import Spinner from '../components/Spinner';
-import { getAllProducts } from '../services/firestoreService';
+import { getAllProducts, type ProductFilters } from '../services/firestoreService';
 import type { Product } from '../types';
 import BackButton from '../components/BackButton';
 import VoiceSearch from '../components/VoiceSearch';
@@ -20,18 +20,26 @@ const ShopPage: React.FC = () => {
   useEffect(() => {
     const fetchProducts = async () => {
       setLoading(true);
-      const fetchedProducts = await getAllProducts();
+      const filters: ProductFilters = {
+        category: category !== 'All' ? category : undefined,
+        region: region !== 'All' ? region : undefined,
+        maxPrice: priceRange,
+        searchTerm: searchTerm || undefined,
+      };
+      const fetchedProducts = await getAllProducts(filters);
       setProducts(fetchedProducts);
       if (fetchedProducts.length > 0) {
         const newMax = Math.max(...fetchedProducts.map(p => p.price));
         const roundedMax = Math.ceil(newMax / 10) * 10; // Round up to nearest 10
         setMaxPrice(roundedMax);
-        setPriceRange(roundedMax);
+        if (priceRange === maxPrice) {
+          setPriceRange(roundedMax);
+        }
       }
       setLoading(false);
     };
     fetchProducts();
-  }, []);
+  }, [category, region, priceRange, searchTerm]);
 
   const handleVoiceSearch = (query: string) => {
       const lowerQuery = query.toLowerCase();
