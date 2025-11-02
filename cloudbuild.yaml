@@ -1,0 +1,6 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'gcr.io/$PROJECT_ID/kalasetu-backend:$COMMIT_SHA', './backend']
+  # This is the crucial line. It tells Docker to find the Dockerfile inside './backend'
+images:
+- 'gcr.io/$PROJECT_ID/kalasetu-backend:$COMMIT_SHA'
