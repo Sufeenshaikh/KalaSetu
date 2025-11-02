@@ -5,7 +5,6 @@
 
 import { Router } from 'express';
 import { verifyToken } from '../../server.js';
-import * as cartController from '../controllers/cart.controller.js';
 import * as orderController from '../controllers/order.controller.js';
 
 const router = Router();
