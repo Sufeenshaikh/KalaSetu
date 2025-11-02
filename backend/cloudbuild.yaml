@@ -45,8 +45,6 @@ steps:
 images:
   - 'gcr.io/$PROJECT_ID/kalasetu-backend:$COMMIT_SHA'
   - 'gcr.io/$PROJECT_ID/kalasetu-backend:latest'
+  - 'gcr.io/$PROJECT_ID/kalasetu-api:$COMMIT_SHA'
 
-options:
-  logging: CLOUD_LOGGING_ONLY
-  machineType: 'E2_HIGHCPU_8'
 
