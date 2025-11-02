@@ -25,6 +25,34 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ artisanId }) => {
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Helper function to format timestamp
+  const formatTimestamp = (timestamp: number | string): string => {
+    // If it's already a formatted string (from dummy data), return as is
+    if (typeof timestamp === 'string' && !timestamp.match(/^\d+$/)) {
+      return timestamp;
+    }
+    
+    // Convert to number if it's a string of digits
+    const timestampNum = typeof timestamp === 'string' ? parseInt(timestamp, 10) : timestamp;
+    
+    if (isNaN(timestampNum)) {
+      return 'Recently';
+    }
+    
+    const now = Date.now();
+    const diff = now - timestampNum;
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (seconds < 60) return 'Just now';
+    if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    if (days < 7) return `${days} day${days > 1 ? 's' : ''} ago`;
+    return new Date(timestampNum).toLocaleDateString();
+  };
+
   useEffect(() => {
     const fetchActivity = async () => {
       setLoading(true);
@@ -33,10 +61,36 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ artisanId }) => {
       setLoading(false);
     };
     fetchActivity();
+    
+    // Listen for new activities
+    const handleActivityAdded = (event: CustomEvent) => {
+      const newActivity = event.detail as ActivityEvent;
+      if (newActivity.artisanId === artisanId) {
+        fetchActivity(); // Refresh activities
+      }
+    };
+    
+    window.addEventListener('activityAdded', handleActivityAdded as EventListener);
+    
+    // Poll localStorage for new activities (fallback)
+    const interval = setInterval(() => {
+      fetchActivity();
+    }, 3000); // Check every 3 seconds
+    
+    return () => {
+      window.removeEventListener('activityAdded', handleActivityAdded as EventListener);
+      clearInterval(interval);
+    };
   }, [artisanId]);
 
-  const orders = activity.filter(e => e.type === 'order');
-  const likes = activity.filter(e => e.type === 'like');
+  // Format timestamps properly
+  const formattedActivity = activity.map(event => ({
+    ...event,
+    timestamp: formatTimestamp(event.timestamp),
+  }));
+
+  const orders = formattedActivity.filter(e => e.type === 'order');
+  const likes = formattedActivity.filter(e => e.type === 'like');
 
   const renderIcon = (type: 'like' | 'order') => {
     switch(type) {

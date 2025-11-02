@@ -14,31 +14,63 @@ const ShopPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [category, setCategory] = useState("All");
   const [region, setRegion] = useState("All");
-  const [maxPrice, setMaxPrice] = useState(300);
-  const [priceRange, setPriceRange] = useState(300);
+  const [maxPrice, setMaxPrice] = useState(10000); // Start with higher default
+  const [priceRange, setPriceRange] = useState(10000); // Start with higher default
 
   useEffect(() => {
     const fetchProducts = async () => {
       setLoading(true);
-      const filters: ProductFilters = {
-        category: category !== 'All' ? category : undefined,
-        region: region !== 'All' ? region : undefined,
-        maxPrice: priceRange,
-        searchTerm: searchTerm || undefined,
-      };
-      const fetchedProducts = await getAllProducts(filters);
+      // Don't apply filters in getAllProducts - we'll filter client-side for better control
+      // This ensures local products are always included
+      const fetchedProducts = await getAllProducts();
+      console.log('Shop page loaded products (before filtering):', fetchedProducts.length, fetchedProducts);
       setProducts(fetchedProducts);
+      
+      // Update maxPrice based on actual products
       if (fetchedProducts.length > 0) {
-        const newMax = Math.max(...fetchedProducts.map(p => p.price));
+        const newMax = Math.max(...fetchedProducts.map(p => p.price || 0));
         const roundedMax = Math.ceil(newMax / 10) * 10; // Round up to nearest 10
-        setMaxPrice(roundedMax);
-        if (priceRange === maxPrice) {
-          setPriceRange(roundedMax);
+        if (roundedMax > maxPrice) {
+          setMaxPrice(roundedMax);
+          // Only update priceRange if it's still at the old max
+          if (priceRange === maxPrice || priceRange < roundedMax) {
+            setPriceRange(roundedMax);
+          }
         }
       }
       setLoading(false);
     };
     fetchProducts();
+    
+    // Listen for storage events to refresh when products are added in other tabs
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'local_products') {
+        fetchProducts();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Listen for custom event when product is saved in same tab
+    const handleProductSaved = () => {
+      fetchProducts();
+    };
+    window.addEventListener('productSaved', handleProductSaved);
+    
+    // Poll localStorage periodically to catch products added in same tab (as fallback)
+    let lastProductCount = JSON.parse(localStorage.getItem('local_products') || '[]').length;
+    const interval = setInterval(() => {
+      const currentCount = JSON.parse(localStorage.getItem('local_products') || '[]').length;
+      if (currentCount > lastProductCount) {
+        lastProductCount = currentCount;
+        fetchProducts();
+      }
+    }, 2000); // Check every 2 seconds
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('productSaved', handleProductSaved);
+      clearInterval(interval);
+    };
   }, [category, region, priceRange, searchTerm]);
 
   const handleVoiceSearch = (query: string) => {
@@ -67,14 +99,51 @@ const ShopPage: React.FC = () => {
   };
   
   const filteredProducts = products
-    .filter(p => 
-        p.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        p.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.category.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    .filter(p => category === "All" || p.category === category)
-    .filter(p => region === "All" || p.region === region)
-    .filter(p => p.price <= priceRange);
+    .filter(p => {
+      // Search filter - only apply if search term exists
+      if (searchTerm.trim()) {
+        const searchLower = searchTerm.toLowerCase();
+        const matchesSearch = 
+          (p.title && p.title.toLowerCase().includes(searchLower)) || 
+          (p.description && p.description.toLowerCase().includes(searchLower)) ||
+          (p.category && p.category.toLowerCase().includes(searchLower)) ||
+          (p.artisanName && p.artisanName.toLowerCase().includes(searchLower));
+        if (!matchesSearch) return false;
+      }
+      return true;
+    })
+    .filter(p => {
+      // Category filter
+      if (category !== "All") {
+        return p.category && p.category === category;
+      }
+      return true;
+    })
+    .filter(p => {
+      // Region filter
+      if (region !== "All") {
+        return p.region && p.region === region;
+      }
+      return true;
+    })
+    .filter(p => {
+      // Price filter
+      const price = p.price || 0;
+      return price <= priceRange;
+    });
+  
+  console.log('Filtered products:', filteredProducts.length, 'out of', products.length, {
+    category,
+    region,
+    priceRange,
+    searchTerm,
+    filters: {
+      category: category !== 'All',
+      region: region !== 'All',
+      priceRange,
+      searchTerm: searchTerm.trim()
+    }
+  });
 
   const loadMore = () => {
     setVisibleProducts(prev => prev + 6);

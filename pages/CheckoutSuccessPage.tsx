@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
-import { getArtisanById } from '../services/firestoreService';
+import { getArtisanById, createActivity } from '../services/firestoreService';
 import type { Artisan, Product } from '../types';
 import Button from '../components/Button';
 import Spinner from '../components/Spinner';
@@ -18,6 +18,7 @@ const CheckoutSuccessPage: React.FC = () => {
     const [product, setProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
+    const hasProcessedOrder = useRef(false);
 
     useEffect(() => {
         if (cartItems.length === 0) {
@@ -25,15 +26,34 @@ const CheckoutSuccessPage: React.FC = () => {
             return;
         }
 
+        // Only process once
+        if (hasProcessedOrder.current) {
+            return;
+        }
+
         const featuredProduct = cartItems[0];
         setProduct(featuredProduct);
 
         const fetchArtisanAndClearCart = async () => {
+            hasProcessedOrder.current = true;
             setLoading(true);
             try {
                 const fetchedArtisan = await getArtisanById(featuredProduct.artisanId);
                 if (fetchedArtisan) {
                     setArtisan(fetchedArtisan);
+                }
+                
+                // Create activity events for all products in cart (orders) BEFORE clearing cart
+                const cartItemsCopy = [...cartItems]; // Save copy before clearing
+                for (const item of cartItemsCopy) {
+                    if (item.artisanId && item.title) {
+                        try {
+                            await createActivity('order', item.artisanId, item.id, item.title);
+                            console.log('Created order activity for:', item.title, 'artisan:', item.artisanId);
+                        } catch (error) {
+                            console.warn('Failed to create order activity:', error);
+                        }
+                    }
                 }
             } catch (e) {
                 console.error("Failed to fetch artisan:", e);
@@ -44,7 +64,8 @@ const CheckoutSuccessPage: React.FC = () => {
         };
 
         fetchArtisanAndClearCart();
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Only run once on mount
 
     if (loading) return <div className="py-20"><Spinner /></div>;
     if (!product || !artisan) return <div className="text-center py-20 text-2xl">Could not load order details.</div>;

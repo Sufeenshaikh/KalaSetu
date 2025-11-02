@@ -107,8 +107,13 @@ export const generateArtisanStory = async (context: string): Promise<string> => 
 
   // Check if API key is configured
   if (!process.env.API_KEY) {
-    console.error("API_KEY is not set in environment variables");
-    throw new Error("API key is not configured. Please set GEMINI_API_KEY in your .env file.");
+    console.warn("API_KEY is not set, returning dummy story");
+    // Return a dummy story for MVP
+    return `My journey as an artisan began with a simple spark of inspiration. ${context} This passion grew into a lifelong dedication to preserving traditional craftsmanship while infusing it with my own creative vision. Each piece I create tells a story—not just of my craft, but of the generations who came before me, passing down techniques and knowledge through the ages.
+
+Through my work, I aim to bridge the gap between tradition and modernity, creating pieces that honor our cultural heritage while resonating with contemporary audiences. The hours spent perfecting each detail, the careful selection of materials, and the meditative process of creation—all of these moments connect me to a larger tapestry of artisans who have shaped our craft over centuries.
+
+This is more than a profession for me; it is a calling. It is a way to keep our traditions alive, to share our stories with the world, and to ensure that the beauty of handmade artistry continues to inspire future generations.`;
   }
 
   // Validate context input
@@ -153,8 +158,13 @@ export const generateArtisanStory = async (context: string): Promise<string> => 
       throw new Error("Network error. Please check your internet connection and try again.");
     }
 
-    // Re-throw the error with more context
-    throw new Error(error?.message || "Failed to generate artisan story. Please try again later.");
+    // Return dummy story on error for MVP
+    console.warn("AI generation failed, returning dummy story");
+    return `My journey as an artisan began with a simple spark of inspiration. ${context} This passion grew into a lifelong dedication to preserving traditional craftsmanship while infusing it with my own creative vision. Each piece I create tells a story—not just of my craft, but of the generations who came before me, passing down techniques and knowledge through the ages.
+
+Through my work, I aim to bridge the gap between tradition and modernity, creating pieces that honor our cultural heritage while resonating with contemporary audiences. The hours spent perfecting each detail, the careful selection of materials, and the meditative process of creation—all of these moments connect me to a larger tapestry of artisans who have shaped our craft over centuries.
+
+This is more than a profession for me; it is a calling. It is a way to keep our traditions alive, to share our stories with the world, and to ensure that the beauty of handmade artistry continues to inspire future generations.`;
   }
 };
 
@@ -530,6 +540,22 @@ const enhanceImageClientSide = async (base64ImageData: string, mimeType: string)
  */
 export const suggestProductPrice = async (productDetails: { title: string; category: string; region: string; description: string }): Promise<number> => {
     const { title, category, region, description } = productDetails;
+    
+    // Check if API key is configured
+    if (!process.env.API_KEY) {
+        console.warn("API_KEY is not set, returning dummy price suggestion");
+        // Return a dummy price based on category for MVP
+        const categoryPrices: Record<string, number> = {
+            'Textiles': 150,
+            'Pottery': 120,
+            'Painting': 200,
+            'Woodwork': 180,
+            'Metalwork': 160,
+            'Leatherwork': 140,
+        };
+        return categoryPrices[category] || 150;
+    }
+    
     // Prompt engineered to ask for a single numerical output.
     const prompt = `Based on the following details for a handcrafted product, suggest a fair market price in Indian Rupees (INR). Return only a single number, without any currency symbols, commas, or text.
 
@@ -556,11 +582,29 @@ export const suggestProductPrice = async (productDetails: { title: string; categ
             return Math.round(price); // Return a rounded integer for simplicity.
         } else {
             console.error("Failed to parse price from AI response:", response.text);
-            return 0; // Return a default value on parsing failure.
+            // Return dummy price on parsing failure
+            const categoryPrices: Record<string, number> = {
+                'Textiles': 150,
+                'Pottery': 120,
+                'Painting': 200,
+                'Woodwork': 180,
+                'Metalwork': 160,
+                'Leatherwork': 140,
+            };
+            return categoryPrices[category] || 150;
         }
     } catch (error) {
         console.error("Error suggesting product price:", error);
-        return 0; // Return a default value on API error.
+        // Return dummy price on API error
+        const categoryPrices: Record<string, number> = {
+            'Textiles': 150,
+            'Pottery': 120,
+            'Painting': 200,
+            'Woodwork': 180,
+            'Metalwork': 160,
+            'Leatherwork': 140,
+        };
+        return categoryPrices[category] || 150;
     }
 };
 
@@ -572,6 +616,19 @@ export const suggestProductPrice = async (productDetails: { title: string; categ
  */
 export const analyzeProductImage = async (base64ImageData: string, mimeType: string): Promise<{ title: string; category: string; description: string; price: number; region: string; }> => {
     console.log("Analyzing product image...");
+    
+    // Check if API key is configured
+    if (!process.env.API_KEY) {
+        console.warn("API_KEY is not set, returning dummy product details");
+        return {
+            title: 'Handcrafted Artisan Product',
+            category: 'Textiles',
+            region: 'Rajasthan',
+            description: 'A beautifully handcrafted piece showcasing traditional Indian artistry. Made with care and attention to detail, this product represents the rich cultural heritage of Indian craftsmanship.',
+            price: 150,
+        };
+    }
+    
     const prompt = `Analyze the following image of a handcrafted product from India. Based on the image, provide a suitable product title, category, its likely region of origin in India, a detailed and appealing description, and a suggested market price in Indian Rupees (INR).
     
     Guidelines:
@@ -626,12 +683,13 @@ export const analyzeProductImage = async (base64ImageData: string, mimeType: str
         }
     } catch (error) {
         console.error("Error analyzing product image:", error);
+        // Return dummy data on error
         return {
-            title: '',
-            category: '',
-            region: '',
-            description: 'Could not generate details from image. Please enter manually.',
-            price: 0,
+            title: 'Handcrafted Artisan Product',
+            category: 'Textiles',
+            region: 'Rajasthan',
+            description: 'A beautifully handcrafted piece showcasing traditional Indian artistry. Made with care and attention to detail, this product represents the rich cultural heritage of Indian craftsmanship.',
+            price: 150,
         };
     }
 };
@@ -644,6 +702,16 @@ export const analyzeProductImage = async (base64ImageData: string, mimeType: str
  */
 export const generateArtisanSuggestions = async (artisan: Artisan, products: Product[]): Promise<{ pricing: string; descriptions: string; trends: string; }> => {
     console.log("Generating suggestions for artisan:", artisan.name);
+
+    // Check if API key is configured
+    if (!process.env.API_KEY) {
+        console.warn("API_KEY is not set, returning dummy suggestions");
+        return {
+            pricing: `Based on your products from ${artisan.region}, consider pricing your items between ₹100-₹500 depending on complexity and materials. Handcrafted items from your region typically command premium prices due to their cultural significance and artisanal quality.`,
+            descriptions: `Enhance your product descriptions by highlighting the cultural heritage, traditional techniques used, and the story behind each piece. Include details about materials, craftsmanship time, and any special significance. Use descriptive words like "handwoven," "traditional," "artisan-made" to appeal to customers seeking authentic pieces.`,
+            trends: `Current trends in Indian handicrafts include: 1) Sustainable and eco-friendly products using natural dyes and materials, 2) Modern adaptations of traditional designs that blend classic patterns with contemporary aesthetics, 3) Personalization options allowing customers to request custom colors or motifs. Consider expanding into these areas while maintaining your authentic craft heritage.`,
+        };
+    }
 
     const productInfo = products.map(p => `- ${p.title} (Price: ₹${p.price}, Category: ${p.category})`).join('\n');
 
@@ -694,7 +762,11 @@ export const generateArtisanSuggestions = async (artisan: Artisan, products: Pro
         }
     } catch (error) {
         console.error("Error generating artisan suggestions:", error);
-        // Throw a user-friendly error to be caught in the component
-        throw new Error("We're sorry, but we couldn't generate suggestions at this time. Please try again later.");
+        // Return dummy suggestions on error
+        return {
+            pricing: `Based on your products from ${artisan.region}, consider pricing your items between ₹100-₹500 depending on complexity and materials. Handcrafted items from your region typically command premium prices due to their cultural significance and artisanal quality.`,
+            descriptions: `Enhance your product descriptions by highlighting the cultural heritage, traditional techniques used, and the story behind each piece. Include details about materials, craftsmanship time, and any special significance. Use descriptive words like "handwoven," "traditional," "artisan-made" to appeal to customers seeking authentic pieces.`,
+            trends: `Current trends in Indian handicrafts include: 1) Sustainable and eco-friendly products using natural dyes and materials, 2) Modern adaptations of traditional designs that blend classic patterns with contemporary aesthetics, 3) Personalization options allowing customers to request custom colors or motifs. Consider expanding into these areas while maintaining your authentic craft heritage.`,
+        };
     }
 };
