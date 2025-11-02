@@ -1,5 +1,7 @@
 import React from 'react';
 
+// FIX: Centralize type definitions for the custom <model-viewer> web component.
+// This resolves errors across the application where standard JSX elements were not being recognized.
 declare global {
   namespace JSX {
     interface IntrinsicElements {
