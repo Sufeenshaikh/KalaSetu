@@ -105,22 +105,6 @@ export const generateProductDescription = async (rawNotes: string): Promise<stri
 export const generateArtisanStory = async (context: string): Promise<string> => {
   console.log("Generating artisan story from context:", context);
 
-  // Check if API key is configured
-  if (!process.env.API_KEY) {
-    console.warn("API_KEY is not set, returning dummy story");
-    // Return a dummy story for MVP
-    return `My journey as an artisan began with a simple spark of inspiration. ${context} This passion grew into a lifelong dedication to preserving traditional craftsmanship while infusing it with my own creative vision. Each piece I create tells a story—not just of my craft, but of the generations who came before me, passing down techniques and knowledge through the ages.
-
-Through my work, I aim to bridge the gap between tradition and modernity, creating pieces that honor our cultural heritage while resonating with contemporary audiences. The hours spent perfecting each detail, the careful selection of materials, and the meditative process of creation—all of these moments connect me to a larger tapestry of artisans who have shaped our craft over centuries.
-
-This is more than a profession for me; it is a calling. It is a way to keep our traditions alive, to share our stories with the world, and to ensure that the beauty of handmade artistry continues to inspire future generations.`;
-  }
-
-  // Validate context input
-  if (!context || context.trim().length === 0) {
-    throw new Error("Context cannot be empty. Please provide some information about the artisan.");
-  }
-
   try {
     const prompt = `Based on the following context about an artisan, rewrite and expand it into a polished, empathetic, and engaging story of about 200 words. The story should be told from the artisan's first-person perspective, as if the artisan is speaking. If the context is short or just keywords, create a compelling story from it. \n\nContext: "${context}"`;
 
@@ -129,42 +113,10 @@ This is more than a profession for me; it is a calling. It is a way to keep our 
       contents: prompt,
     });
     
-    // Check if response has text
-    if (!response || !response.text || response.text.trim().length === 0) {
-      console.error("Empty response from AI model");
-      throw new Error("Received an empty response from the AI service. Please try again.");
-    }
-    
     return response.text;
-  } catch (error: any) {
-    // Log detailed error information
-    console.error("Error generating artisan story:", {
-      message: error?.message,
-      code: error?.code,
-      status: error?.status,
-      statusCode: error?.statusCode,
-      details: error,
-      stack: error?.stack
-    });
-
-    // Provide more specific error messages based on error type
-    if (error?.message?.includes('API key') || error?.code === 401) {
-      throw new Error("Invalid API key. Please check your GEMINI_API_KEY configuration.");
-    }
-    if (error?.code === 429 || error?.status === 429) {
-      throw new Error("Rate limit exceeded. Please wait a moment and try again.");
-    }
-    if (error?.code === 'ENOTFOUND' || error?.code === 'ECONNREFUSED') {
-      throw new Error("Network error. Please check your internet connection and try again.");
-    }
-
-    // Return dummy story on error for MVP
-    console.warn("AI generation failed, returning dummy story");
-    return `My journey as an artisan began with a simple spark of inspiration. ${context} This passion grew into a lifelong dedication to preserving traditional craftsmanship while infusing it with my own creative vision. Each piece I create tells a story—not just of my craft, but of the generations who came before me, passing down techniques and knowledge through the ages.
-
-Through my work, I aim to bridge the gap between tradition and modernity, creating pieces that honor our cultural heritage while resonating with contemporary audiences. The hours spent perfecting each detail, the careful selection of materials, and the meditative process of creation—all of these moments connect me to a larger tapestry of artisans who have shaped our craft over centuries.
-
-This is more than a profession for me; it is a calling. It is a way to keep our traditions alive, to share our stories with the world, and to ensure that the beauty of handmade artistry continues to inspire future generations.`;
+  } catch (error) {
+    console.error("Error generating artisan story:", error);
+    return "We're sorry, but we couldn't generate a story at this time. Please try again later.";
   }
 };
 
@@ -385,6 +337,7 @@ export const enhanceProductImage = async (base64ImageData: string, mimeType: str
     /*
     try {
         const response = await ai.models.generateContent({
+          // FIX: Updated deprecated model name.
           model: 'gemini-2.5-flash-image',
           contents: {
             parts: [
@@ -398,6 +351,7 @@ export const enhanceProductImage = async (base64ImageData: string, mimeType: str
             ],
           },
           config: {
+              // FIX: According to guidelines, responseModalities should only contain Modality.IMAGE for image editing.
               responseModalities: [Modality.IMAGE],
           },
         });
@@ -415,122 +369,11 @@ export const enhanceProductImage = async (base64ImageData: string, mimeType: str
     }
     */
 
-    // Validate inputs
-    if (!base64ImageData || base64ImageData.trim().length === 0) {
-        throw new Error("Invalid image data provided. Please upload an image first.");
-    }
-    
-    if (!mimeType || !mimeType.startsWith('image/')) {
-        throw new Error("Invalid image format. Please ensure you're uploading a valid image file.");
-    }
-    
-    // Check if API key is configured
-    if (!process.env.API_KEY) {
-        throw new Error("API key is not configured. Please set GEMINI_API_KEY in your .env file.");
-    }
-
-    // Note: Gemini models can analyze images but don't directly generate/enhance them
-    // We'll use a client-side enhancement approach using canvas
-    try {
-        // Apply basic client-side image enhancement
-        const enhanced = await enhanceImageClientSide(base64ImageData, mimeType);
-        return enhanced;
-    } catch (error: any) {
-        console.error("Error enhancing product image:", {
-            message: error?.message,
-            code: error?.code,
-            details: error
-        });
-        
-        // Re-throw with more context
-        throw new Error(error?.message || "Image enhancement failed. Please try again or use the original image.");
-    }
-};
-
-/**
- * Client-side image enhancement using canvas
- * Applies brightness, contrast, and saturation adjustments
- */
-const enhanceImageClientSide = async (base64ImageData: string, mimeType: string): Promise<string> => {
-    // Check if we're in a browser environment
-    if (typeof window === 'undefined' || typeof document === 'undefined') {
-        throw new Error("Image enhancement requires a browser environment");
-    }
-    
-    return new Promise((resolve, reject) => {
-        try {
-            // Construct data URI - handle both with and without prefix
-            const dataUri = base64ImageData.startsWith('data:') 
-                ? base64ImageData 
-                : `data:${mimeType};base64,${base64ImageData}`;
-            
-            // Create an image element
-            const img = new Image();
-            
-            img.onload = () => {
-                try {
-                    // Create canvas
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    
-                    if (!ctx) {
-                        throw new Error("Could not get canvas context");
-                    }
-                    
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    
-                    // Draw image to canvas
-                    ctx.drawImage(img, 0, 0);
-                    
-                    // Get image data
-                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    const data = imageData.data;
-                    
-                    // Apply enhancements: brightness, contrast, and slight saturation
-                    for (let i = 0; i < data.length; i += 4) {
-                        const r = data[i];
-                        const g = data[i + 1];
-                        const b = data[i + 2];
-                        
-                        // Brightness adjustment (+8%)
-                        let newR = Math.min(255, r * 1.08);
-                        let newG = Math.min(255, g * 1.08);
-                        let newB = Math.min(255, b * 1.08);
-                        
-                        // Contrast adjustment
-                        const factor = 1.12;
-                        newR = Math.min(255, ((newR / 255 - 0.5) * factor + 0.5) * 255);
-                        newG = Math.min(255, ((newG / 255 - 0.5) * factor + 0.5) * 255);
-                        newB = Math.min(255, ((newB / 255 - 0.5) * factor + 0.5) * 255);
-                        
-                        data[i] = Math.round(newR);
-                        data[i + 1] = Math.round(newG);
-                        data[i + 2] = Math.round(newB);
-                    }
-                    
-                    // Put enhanced image data back
-                    ctx.putImageData(imageData, 0, 0);
-                    
-                    // Convert to base64
-                    const enhancedBase64 = canvas.toDataURL(mimeType, 0.92);
-                    resolve(enhancedBase64);
-                } catch (error) {
-                    reject(new Error(`Image processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
-                }
-            };
-            
-            img.onerror = () => {
-                reject(new Error("Failed to load image for enhancement"));
-            };
-            
-            // Load image from data URI
-            img.src = dataUri;
-                
-        } catch (error) {
-            reject(new Error(`Image enhancement failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
-        }
-    });
+    // Mocked response for demonstration
+    await delay(2500);
+    console.log("Mock image enhancement complete.");
+    // For the mock, we'll just return the original image to demonstrate the UI flow.
+    return `data:${mimeType};base64,${base64ImageData}`;
 };
 
 /**
@@ -540,22 +383,6 @@ const enhanceImageClientSide = async (base64ImageData: string, mimeType: string)
  */
 export const suggestProductPrice = async (productDetails: { title: string; category: string; region: string; description: string }): Promise<number> => {
     const { title, category, region, description } = productDetails;
-    
-    // Check if API key is configured
-    if (!process.env.API_KEY) {
-        console.warn("API_KEY is not set, returning dummy price suggestion");
-        // Return a dummy price based on category for MVP
-        const categoryPrices: Record<string, number> = {
-            'Textiles': 150,
-            'Pottery': 120,
-            'Painting': 200,
-            'Woodwork': 180,
-            'Metalwork': 160,
-            'Leatherwork': 140,
-        };
-        return categoryPrices[category] || 150;
-    }
-    
     // Prompt engineered to ask for a single numerical output.
     const prompt = `Based on the following details for a handcrafted product, suggest a fair market price in Indian Rupees (INR). Return only a single number, without any currency symbols, commas, or text.
 
@@ -582,29 +409,11 @@ export const suggestProductPrice = async (productDetails: { title: string; categ
             return Math.round(price); // Return a rounded integer for simplicity.
         } else {
             console.error("Failed to parse price from AI response:", response.text);
-            // Return dummy price on parsing failure
-            const categoryPrices: Record<string, number> = {
-                'Textiles': 150,
-                'Pottery': 120,
-                'Painting': 200,
-                'Woodwork': 180,
-                'Metalwork': 160,
-                'Leatherwork': 140,
-            };
-            return categoryPrices[category] || 150;
+            return 0; // Return a default value on parsing failure.
         }
     } catch (error) {
         console.error("Error suggesting product price:", error);
-        // Return dummy price on API error
-        const categoryPrices: Record<string, number> = {
-            'Textiles': 150,
-            'Pottery': 120,
-            'Painting': 200,
-            'Woodwork': 180,
-            'Metalwork': 160,
-            'Leatherwork': 140,
-        };
-        return categoryPrices[category] || 150;
+        return 0; // Return a default value on API error.
     }
 };
 
@@ -616,19 +425,6 @@ export const suggestProductPrice = async (productDetails: { title: string; categ
  */
 export const analyzeProductImage = async (base64ImageData: string, mimeType: string): Promise<{ title: string; category: string; description: string; price: number; region: string; }> => {
     console.log("Analyzing product image...");
-    
-    // Check if API key is configured
-    if (!process.env.API_KEY) {
-        console.warn("API_KEY is not set, returning dummy product details");
-        return {
-            title: 'Handcrafted Artisan Product',
-            category: 'Textiles',
-            region: 'Rajasthan',
-            description: 'A beautifully handcrafted piece showcasing traditional Indian artistry. Made with care and attention to detail, this product represents the rich cultural heritage of Indian craftsmanship.',
-            price: 150,
-        };
-    }
-    
     const prompt = `Analyze the following image of a handcrafted product from India. Based on the image, provide a suitable product title, category, its likely region of origin in India, a detailed and appealing description, and a suggested market price in Indian Rupees (INR).
     
     Guidelines:
@@ -650,7 +446,7 @@ export const analyzeProductImage = async (base64ImageData: string, mimeType: str
     try {
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
-            contents: [textPart, imagePart],
+            contents: { parts: [textPart, imagePart] },
             config: {
                 responseMimeType: "application/json",
                 responseSchema: {
@@ -683,13 +479,12 @@ export const analyzeProductImage = async (base64ImageData: string, mimeType: str
         }
     } catch (error) {
         console.error("Error analyzing product image:", error);
-        // Return dummy data on error
         return {
-            title: 'Handcrafted Artisan Product',
-            category: 'Textiles',
-            region: 'Rajasthan',
-            description: 'A beautifully handcrafted piece showcasing traditional Indian artistry. Made with care and attention to detail, this product represents the rich cultural heritage of Indian craftsmanship.',
-            price: 150,
+            title: '',
+            category: '',
+            region: '',
+            description: 'Could not generate details from image. Please enter manually.',
+            price: 0,
         };
     }
 };
@@ -702,16 +497,6 @@ export const analyzeProductImage = async (base64ImageData: string, mimeType: str
  */
 export const generateArtisanSuggestions = async (artisan: Artisan, products: Product[]): Promise<{ pricing: string; descriptions: string; trends: string; }> => {
     console.log("Generating suggestions for artisan:", artisan.name);
-
-    // Check if API key is configured
-    if (!process.env.API_KEY) {
-        console.warn("API_KEY is not set, returning dummy suggestions");
-        return {
-            pricing: `Based on your products from ${artisan.region}, consider pricing your items between ₹100-₹500 depending on complexity and materials. Handcrafted items from your region typically command premium prices due to their cultural significance and artisanal quality.`,
-            descriptions: `Enhance your product descriptions by highlighting the cultural heritage, traditional techniques used, and the story behind each piece. Include details about materials, craftsmanship time, and any special significance. Use descriptive words like "handwoven," "traditional," "artisan-made" to appeal to customers seeking authentic pieces.`,
-            trends: `Current trends in Indian handicrafts include: 1) Sustainable and eco-friendly products using natural dyes and materials, 2) Modern adaptations of traditional designs that blend classic patterns with contemporary aesthetics, 3) Personalization options allowing customers to request custom colors or motifs. Consider expanding into these areas while maintaining your authentic craft heritage.`,
-        };
-    }
 
     const productInfo = products.map(p => `- ${p.title} (Price: ₹${p.price}, Category: ${p.category})`).join('\n');
 
@@ -762,11 +547,7 @@ export const generateArtisanSuggestions = async (artisan: Artisan, products: Pro
         }
     } catch (error) {
         console.error("Error generating artisan suggestions:", error);
-        // Return dummy suggestions on error
-        return {
-            pricing: `Based on your products from ${artisan.region}, consider pricing your items between ₹100-₹500 depending on complexity and materials. Handcrafted items from your region typically command premium prices due to their cultural significance and artisanal quality.`,
-            descriptions: `Enhance your product descriptions by highlighting the cultural heritage, traditional techniques used, and the story behind each piece. Include details about materials, craftsmanship time, and any special significance. Use descriptive words like "handwoven," "traditional," "artisan-made" to appeal to customers seeking authentic pieces.`,
-            trends: `Current trends in Indian handicrafts include: 1) Sustainable and eco-friendly products using natural dyes and materials, 2) Modern adaptations of traditional designs that blend classic patterns with contemporary aesthetics, 3) Personalization options allowing customers to request custom colors or motifs. Consider expanding into these areas while maintaining your authentic craft heritage.`,
-        };
+        // Throw a user-friendly error to be caught in the component
+        throw new Error("We're sorry, but we couldn't generate suggestions at this time. Please try again later.");
     }
 };
