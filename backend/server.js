@@ -35,10 +35,26 @@ dotenv.config();
 const app = express();
 
 // Basic middleware
-app.use(cors());
+// CORS configuration for production
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production' 
+    ? [
+        'https://kalasetu-e55c4.web.app',
+        'https://kalasetu-e55c4.firebaseapp.com',
+        'https://kalasetu-e55c4.web.app/',
+        'https://kalasetu-e55c4.firebaseapp.com/',
+        ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [])
+      ]
+    : true, // Allow all origins in development
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan('dev'));
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // Initialize Firebase Admin SDK using environment variables.
 // We build a service account object from env vars to avoid having a file committed.

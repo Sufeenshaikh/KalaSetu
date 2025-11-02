@@ -10,7 +10,9 @@
     "test": "NODE_ENV=test jest",
     "firebase:login:ci": "npx firebase-tools login:ci",
     "firebase:ci-deploy": "npx firebase-tools deploy --only firestore:rules,storage:rules --project kalasetu-e55c4 --token $FIREBASE_TOKEN",
-    "firebase:deploy:interactive": "npx firebase-tools deploy --only firestore:rules,storage:rules --project kalasetu-e55c4"
+    "firebase:deploy:interactive": "npx firebase-tools deploy --only firestore:rules,storage:rules --project kalasetu-e55c4",
+    "build:docker": "docker build -t gcr.io/kalasetu-e55c4/kalasetu-backend .",
+    "deploy:cloud-run": "gcloud run deploy kalasetu-backend --source . --region us-central1 --allow-unauthenticated"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.0.0",

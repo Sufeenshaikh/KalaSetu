@@ -1,0 +1,24 @@
+# Cloud Build configuration for Frontend deployment
+steps:
+  # Install dependencies
+  - name: 'node:18'
+    entrypoint: 'npm'
+    args: ['ci']
+
+  # Build the frontend
+  - name: 'node:18'
+    entrypoint: 'npm'
+    args: ['run', 'build']
+
+  # Deploy to Firebase Hosting
+  - name: 'gcr.io/$PROJECT_ID/firebase'
+    args:
+      - 'deploy'
+      - '--only'
+      - 'hosting'
+      - '--project'
+      - 'kalasetu-e55c4'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
