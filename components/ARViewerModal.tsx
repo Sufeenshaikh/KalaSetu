@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 
-// Type definitions for the custom <model-viewer> web component are now in types.ts.
+// Note: Type definitions for the custom <model-viewer> element have been moved to a central types.ts file.
 
 interface ARViewerModalProps {
   isOpen: boolean;
