@@ -3,10 +3,13 @@ import { Link } from 'react-router-dom';
 import Button from '../components/Button';
 import ProductCard from '../components/ProductCard';
 import Spinner from '../components/Spinner';
-import { getFeaturedProducts, getFeaturedArtisan } from '../services/firestoreService';
+// MODIFICATION: Removed getFeaturedArtisan from this import
+import { getFeaturedProducts } from '../services/firestoreService';
 import type { Product, Artisan } from '../types';
 import ArtisanStoryModal from '../components/ArtisanStoryModal';
 import { useLanguage } from '../context/LanguageContext';
+// MODIFICATION: Import the dummy artisan data
+import { artisans as dummyArtisans } from '../data/dummyData';
 
 const EmpowermentIcon = ({ children }: { children: React.ReactNode }) => (
     <div className="bg-accent/20 text-primary rounded-full h-16 w-16 flex items-center justify-center mb-4">
@@ -80,12 +83,15 @@ const HomePage: React.FC = () => {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const [fetchedProducts, fetchedArtisan] = await Promise.all([
+                // MODIFICATION: Only calling getFeaturedProducts in Promise.all
+                const [fetchedProducts] = await Promise.all([
                     getFeaturedProducts(),
-                    getFeaturedArtisan(),
                 ]);
                 setProducts(fetchedProducts);
-                setArtisan(fetchedArtisan as Artisan);
+                // MODIFICATION: Use the first artisan from the dummy data
+                if (dummyArtisans.length > 0) {
+                    setArtisan(dummyArtisans[0]);
+                }
             } catch (error) {
                 console.error("Failed to fetch homepage data:", error);
             } finally {
